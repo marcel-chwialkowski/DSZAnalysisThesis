@@ -1,6 +1,8 @@
 # DSZAnalysis
 Probability Bounds Analysis of Neural Networks in Julia
 
+First version - to be sanitized soon...
+
 ## Dependencies
 Builds on:
 - the [LazySets](https://juliareach.github.io/LazySets.jl/) package for calculus with convex sets 
