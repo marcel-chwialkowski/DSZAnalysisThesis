@@ -40,7 +40,7 @@ function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_f
 end
 
 
-# initialize  pboxes with different number of focal elements
+# initialize a vector of pboxes with different number of focal elements for each input component
 function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_focal_elem::Vector{Int64},truncate_focals::Bool)
     steps = parametersPBA.steps # saving the number of focal elements
     mean = (init_lb + init_ub) / 2.0
@@ -162,8 +162,6 @@ function rescale(input::pbox)
     end
     
     pzaffres = pzaff + Aeta*v2
-
-    #println("pzaffres=\n",pzaffres)
     
     return pzaffres
  

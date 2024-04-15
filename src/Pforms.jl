@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # # Second version of Probabilistic Affine Forms using a data structure for actual PForms representation  
 
-mutable struct PAF
+mutable struct DSZ
     flow :: Vector{Zonotope}           # vector of length nb_steps
     n :: Int64                          # input dimension (number of noise symbols)
     p :: Int64                          # output dim (nb of neurons)
@@ -39,7 +39,7 @@ end
 
 
 # for independent inputs - building the DSZ from the vector of pbox/DSI
-function generate_PAF(vp :: Vector{pbox})
+function generate_DSZ(vp :: Vector{pbox})
     n = length(vp) # input dimension (number of noise symbols)
     p = n  # we build the PAF for (x_1, ... x_n)
 
@@ -82,7 +82,7 @@ function generate_PAF(vp :: Vector{pbox})
     end
 
     #print("flow2=",flow2,"\n\n")
-    return PAF(flow2, n, p, nb_steps)
+    return DSZ(flow2, n, p, nb_steps)
 end
 
 
@@ -99,28 +99,28 @@ function makepbox2(focal_el)
 
 
 
-function PAF_to_pbox(paf :: PAF, is_bounded::Bool)
-    vp = Vector{pbox}(undef,paf.p)
+function DSZ_to_pbox(dsz :: DSZ, is_bounded::Bool)
+    vp = Vector{pbox}(undef,dsz.p)
 
     # number of focal elements
     #save_steps = parametersPBA.steps
-    ProbabilityBoundsAnalysis.setSteps(paf.nb_steps)
+    ProbabilityBoundsAnalysis.setSteps(dsz.nb_steps)
 
-    c = LazySets.center.(paf.flow)
-    A = LazySets.genmat.(paf.flow)
+    c = LazySets.center.(dsz.flow)
+    A = LazySets.genmat.(dsz.flow)
    
-    aff = Array{Interval}(undef,paf.nb_steps,paf.p)
+    aff = Array{Interval}(undef,dsz.nb_steps,dsz.p)
 
     # concretization of each zonotope as a vector of intervals
-    for i in 1:paf.nb_steps 
+    for i in 1:dsz.nb_steps 
         B = A[i]
         v = interval(-1,1) * ones(length(B[1,:])) 
         aff[i,:] = A[i]*v + c[i]
     end
 
-    temp= Array{Interval}(undef,paf.nb_steps,1)
+    temp= Array{Interval}(undef,dsz.nb_steps,1)
 
-    for k in 1:paf.p
+    for k in 1:dsz.p
         temp = aff[:,k] 
         vp[k] = makepbox2(temp)
         if (is_bounded)
@@ -140,9 +140,9 @@ end
 
 
 # classical zonotopic propagation on each elementary zonotope
-function paf_approximate_act_map(act::ActivationFunction, input::PAF)
-    #Input: activation function and a PAF
-    # Output : a PAF after applying the activation function on it
+function dsz(act::ActivationFunction, input::DSZ)
+    #Input: activation function and a DSZ
+    # Output : a DSZ after applying the activation function on it
     
     if (act == Id())
         return input
@@ -166,7 +166,7 @@ function paf_approximate_act_map(act::ActivationFunction, input::PAF)
 
         end
         # TODO. Mean and variance yet to be modified
-        return PAF(outputs, input.n, input.p, input.nb_steps) 
+        return DSZ(outputs, input.n, input.p, input.nb_steps) 
 
     else 
         print("warning, ",act," not yet implemented")
@@ -175,7 +175,7 @@ function paf_approximate_act_map(act::ActivationFunction, input::PAF)
 end
 
 
-function paf_approximate_affine_map(layer::Layer, input::PAF)
+function dsz(layer::Layer, input::DSZ)
     p = length(layer.bias)  # output layer dimension
     outputs = Vector{Zonotope}(undef,input.nb_steps)
     for i in 1 : input.nb_steps
@@ -183,46 +183,46 @@ function paf_approximate_affine_map(layer::Layer, input::PAF)
        outputs[i]= concretize(layer.weights*input.flow[i]+layer.bias)        
     end
     # TODO. Need to update Mean and variance (and should be of dimension p)
-    return PAF(outputs, input.n, p, input.nb_steps)
+    return DSZ(outputs, input.n, p, input.nb_steps)
 end
 
 
-function paf_approximate_nnet(nnet::Network, input::PAF)
-    bounds = Vector{PAF}(undef, length(nnet.layers) + 1)
+function dsz(nnet::Network, input::DSZ)
+    bounds = Vector{DSZ}(undef, length(nnet.layers) + 1)
     bounds[1] = input
     
     for i in 1:length(nnet.layers)
         #Using my own implementation of activation function
         #print(paf_approximate_affine_map(nnet.layers[i],bounds[i]))
-        bounds[i+1]=paf_approximate_act_map(nnet.layers[i].activation,paf_approximate_affine_map(nnet.layers[i],bounds[i]))
+        bounds[i+1]=dsz_approximate_act_map(nnet.layers[i].activation,dsz_approximate_affine_map(nnet.layers[i],bounds[i]))
     end
 
     return bounds[length(nnet.layers)+1]   
 end
 
 # putting everything together
-function paf_approximate_nnet(nnet::Network, input::Vector{pbox})
-    paf_in = generate_PAF(input)
+function dsz_approximate_nnet(nnet::Network, input::Vector{pbox})
+    dsz_in = generate_DSZ(input)
     #print("after generate_PAF\n")
     #print("paf_in length =",length(paf_in.flow), " contents = ", paf_in,"\n")
-    paf_out = paf_approximate_nnet(nnet, paf_in)
+    dsz_out = dsz_approximate_nnet(nnet, dsz_in)
     if (input[1].bounded[1])
         is_bounded = true
     else
         is_bounded = false
     end
-    return PAF_to_pbox(paf_out,is_bounded)
+    return DSZ_to_pbox(dsz_out,is_bounded)
 end
 
 # Adding linear transform for interpretation of the condition
-function paf_approximate_condition(input::PAF, mat_spec::Matrix{Float64})
+function dsz_approximate_condition(input::DSZ, mat_spec::Matrix{Float64})
     outputs = Vector{Zonotope}(undef,input.nb_steps)
     for i in 1 : input.nb_steps
        # apply affline transform on zonotope
        outputs[i]= concretize(mat_spec*input.flow[i])
     end
     # TODO. Need to update Mean and variance (and should be of dimension p)
-    return PAF(outputs, input.n, size(mat_spec,1), input.nb_steps)
+    return DSZ(outputs, input.n, size(mat_spec,1), input.nb_steps)
 end
 
 # Redefining cdf from the library because there are a few details in the implem which I find "debatable"...
@@ -279,23 +279,23 @@ function vect_cdf(s :: Vector{pbox}, vx::Vector{Float64})
 end
 
 # Define cdf function for vector vx
-function paf_cdf(paf :: PAF, vx::Vector{Float64})
+function dsz_cdf(dsz :: DSZ, vx::Vector{Float64})
 
-    c = LazySets.center.(paf.flow)
-    A = LazySets.genmat.(paf.flow)
+    c = LazySets.center.(dsz.flow)
+    A = LazySets.genmat.(dsz.flow)
    
-    aff = Array{Interval}(undef,paf.nb_steps,paf.p)
+    aff = Array{Interval}(undef,dsz.nb_steps,dsz.p)
     # remplacer ci-dessous simplement par le range des zonotopes ? 
     sumUb = 0.0
     sumLb = 0.0
-    for i in 1:paf.nb_steps 
+    for i in 1:dsz.nb_steps 
         B = A[i]
         v = interval(-1,1) * ones(length(B[1,:])) 
         aff[i,:] = A[i]*v + c[i]
         
         valUb = true
         valLb = true
-        for k in 1:paf.p
+        for k in 1:dsz.p
             if (left(aff[i,k]) > vx[k])
                 valUb = false
             end
@@ -320,8 +320,8 @@ function paf_cdf(paf :: PAF, vx::Vector{Float64})
     # if ((sumUb ==0) && is_bounded)
     #     sumUb = sumUb+1
     # end
-    indUb = sumUb/paf.nb_steps;
-    indLb = sumLb/paf.nb_steps;
+    indUb = sumUb/dsz.nb_steps;
+    indLb = sumLb/dsz.nb_steps;
 
     return interval(indLb, indUb)
 
@@ -356,11 +356,11 @@ end
 
 
 # instead of just producing the resulting pbox, evaluates the condition on the zonotopic form before evaluating it in pbox
-function paf_approximate_nnet_and_condition_nostorage(nnet::Network, input::Vector{pbox}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64}, print_pbox=false)
-    # paf_in = generate_PAF(input)
+function dsz_approximate_nnet_and_condition_nostorage(nnet::Network, input::Vector{pbox}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64}, print_pbox=false)
+    # dsz_in = generate_DSZ(input)
     vp = input
     n = length(vp) # input dimension (number of noise symbols)
-    p = n  # we build the PAF for (x_1, ... x_n)
+    p = n  # we build the DSZ for (x_1, ... x_n)
 
 
     nb_steps = length(vp[1].u)
@@ -400,20 +400,15 @@ end
     
 
 # instead of just producing the resulting pbox, evaluates the condition on the zonotopic form before evaluating it in pbox
-function paf_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64}, print_pbox=false)
-    paf_in = generate_PAF(input)
-    #print("after generate_PAF\n")
-    #print("paf_in length =",length(paf_in.flow), " contents = ", paf_in,"\n")
-    paf_out = paf_approximate_nnet(nnet, paf_in)
-    #println("af : ",paf_out)
-    paf_condition = paf_approximate_condition(paf_out,mat_spec)
-    #println("paf_cond : ",paf_condition)
-    proba = paf_cdf(paf_condition,rhs_spec)
-    #println("Probability of unsafety : ",mat_spec," . y < ",rhs_spec," is: ",proba)
+function dsz_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64}, print_pbox=false)
+    dsz_in = generate_DSZ(input)
+    dsz_out = dsz_approximate_nnet(nnet, dsz_in)
+    dsz_condition = dsz_approximate_condition(dsz_out,mat_spec)
+    proba = dsz_cdf(dsz_condition,rhs_spec)
     println("Probability : ",proba)
     
     
-    # res = PAF_to_pbox(paf_condition,is_bounded)
+    # res = DSZ_to_pbox(dsz_condition,is_bounded)
     # println("probability of unsafety : ",mat_spec," . y < ",rhs_spec," is:")
     # print("res[1] <= 0: ", res[1] <= rhs_spec[1], "\n")
     # print("res[2] <= 0: ", res[2] <= rhs_spec[2], "\n")
@@ -440,14 +435,14 @@ function paf_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, 
         else
             is_bounded = false
         end
-        res =  PAF_to_pbox(paf_out, is_bounded)
+        res =  DSZ_to_pbox(dsz_out, is_bounded)
         println("resulting pbox:",res)
     end
 
     return proba;
 end
 
-function paf_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool)
+function dsz_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool)
     vect_nb_focal_elem = Vector{Int64}(undef, length(init_lb)) 
     nb_elem = 1
     for i in 1:length(init_lb)
@@ -456,7 +451,7 @@ function paf_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::V
     end
     acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
     println("vect_nb_focal_elem=",vect_nb_focal_elem,":")
-    @time proba = paf_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
+    @time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
     w = sup(proba)-inf(proba)
     w_test = Vector{Float64}(undef, length(init_lb))
     is_improved = false
@@ -466,7 +461,7 @@ function paf_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::V
 	    temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
 	    vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
             acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-	    @time proba = paf_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
+	    @time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
 	    w_test[i] = sup(proba)-inf(proba)
 	    if (w > w_test[i])
 		    is_improved = true
@@ -501,7 +496,7 @@ function paf_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::V
         #vect_nb_focal_elem[argmin(w_test)] = vect_nb_focal_elem[argmin(w_test)] + 10 # seems better to augment only one compoennt
 	acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
     	println("vect_nb_focal_elem=",vect_nb_focal_elem,":")
-    	@time proba = paf_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
+    	@time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
     	w = sup(proba)-inf(proba)  
 	if (nb_elem > 1000000)
 	   break
@@ -511,7 +506,7 @@ function paf_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::V
 	    temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
             vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
             acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-            @time proba = paf_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
+            @time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
             w_test[i] = sup(proba)-inf(proba)
 	    println("vect_nb_focal_elem=",vect_nb_focal_elem,":"," prob width=",w_test[i])
             vect_nb_focal_elem[i] = vect_nb_focal_elem[i] - temp
@@ -534,7 +529,7 @@ function paf_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::V
 
 end
 
-function paf_focal_refinement_sauv(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool)
+function dsz_focal_refinement_sauv(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool)
     vect_nb_focal_elem = Vector{Int64}(undef, length(init_lb))
     nb_elem = 1
     for i in 1:length(init_lb)
@@ -543,7 +538,7 @@ function paf_focal_refinement_sauv(nnet::Network, init_lb::Vector{Float64},init_
     end
     acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
     println("vect_nb_focal_elem=",vect_nb_focal_elem,":")
-    @time proba = paf_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
+    @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
     w = sup(proba)-inf(proba)
     w_test = Vector{Float64}(undef, length(init_lb))
     is_improved = false
@@ -553,7 +548,7 @@ function paf_focal_refinement_sauv(nnet::Network, init_lb::Vector{Float64},init_
             temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
             vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
             acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-            @time proba = paf_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
+            @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
             w_test[i] = sup(proba)-inf(proba)
             if (w > w_test[i])
                     is_improved = true
@@ -587,7 +582,7 @@ function paf_focal_refinement_sauv(nnet::Network, init_lb::Vector{Float64},init_
         #vect_nb_focal_elem[argmin(w_test)] = vect_nb_focal_elem[argmin(w_test)] + 10 # seems better to augment only one compoennt
         acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
         println("vect_nb_focal_elem=",vect_nb_focal_elem,":")
-        @time proba = paf_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
+        @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
         w = sup(proba)-inf(proba)
         if (nb_elem > 1000000)
            break
@@ -598,7 +593,7 @@ function paf_focal_refinement_sauv(nnet::Network, init_lb::Vector{Float64},init_
             temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
             vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
             acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-            @time proba = paf_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
+            @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
             w_test[i] = sup(proba)-inf(proba)
             if (w > w_test[i])
                     is_improved = true
