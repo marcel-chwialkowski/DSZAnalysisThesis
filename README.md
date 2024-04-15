@@ -1,5 +1,8 @@
 # DSZAnalysis
-Probability Bounds Analysis of Neural Networks in Julia
+Probability Bounds Analysis of Neural Networks in Julia.
+
+Code to reproduce the examples of:
+A Zonotopic Dempster-Shafer Approach to the Quantitative Verification of Neural Networks, Eric Goubault, Sylvie Putot, 2024.
 
 First version - to be sanitized soon...
 
