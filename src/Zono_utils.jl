@@ -16,7 +16,7 @@ end
 
 
 
-# same as above but not storing all intermediate layers
+# zonotope interpretation of network
 function zono_approximate_nnet(nnet::Network, input::Hyperrectangle)
     #bounds = Vector{PAF}(undef, length(nnet.layers) + 1)
     res_zono = input

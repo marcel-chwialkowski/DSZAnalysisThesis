@@ -17,7 +17,7 @@ using SplitApplyCombine
 
 
 
-# initialize all pboxes with same number of focal elements and Normal law, possibly truncated 
+# initialize a vector of pboxes with same number of focal elements for each component and Normal law, possibly truncated 
 function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_focal_elem::Int64,truncate_focals::Bool)
     steps = parametersPBA.steps # saving the number of focal elements
     mean = (init_lb + init_ub) / 2.0
@@ -67,7 +67,7 @@ end
 
 
 
-# Utilities to interpret a neural network in Pbox
+# Utilities to interpret a neural network in Pbox / DSI
 
 function Relu(x::pbox)
     #print(x.u,"\n")
@@ -77,6 +77,7 @@ function Relu(x::pbox)
     y = pbox(u,d)
     return y   
 end
+
 
 function pbox_affine_map_Invdep(M::Matrix{Float64},input::Vector{pbox},b::Vector{Float64})
     output = Vector{pbox}(undef, length(b))
@@ -91,7 +92,8 @@ function pbox_affine_map_Invdep(M::Matrix{Float64},input::Vector{pbox},b::Vector
 end
 
 function pbox_affine_map(no_layer::Int64, layer::Layer, input::Vector{pbox}, input_is_indep::Bool)
-    if (no_layer > 1 || !input_is_indep)
+    # after the 1st layer we always assume unknown correlation between variables and adapt affine transform accordingly
+    if (no_layer > 1 || !input_is_indep) 
         output = layer.weights * input + layer.bias; 
     else
         output = pbox_affine_map_Invdep(layer.weights,input,layer.bias)
@@ -111,14 +113,13 @@ function pbox_act_map(act::ActivationFunction, input::Vector{pbox})
 end
 
 function pbox_approximate_nnet(nnet::Network, input::Vector{pbox}, input_is_indep::Bool)
-    bounds = Vector{Vector{pbox}}(undef, length(nnet.layers) + 1)
-    bounds[1] = input
+    bounds = input
     for i in 1:length(nnet.layers)
-        temp = pbox_affine_map(i,nnet.layers[i],bounds[i], input_is_indep)
-        bounds[i+1] = pbox_act_map(nnet.layers[i].activation,temp)
+        temp = pbox_affine_map(i,nnet.layers[i],bounds, input_is_indep)
+        bounds = pbox_act_map(nnet.layers[i].activation,temp)
     end
 
-    return bounds[length(nnet.layers)+1]
+    return bounds
 end
 
 
