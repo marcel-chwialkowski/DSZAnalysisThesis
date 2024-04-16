@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-# # Second version of Probabilistic Affine Forms using a data structure for actual PForms representation  
+# # Dempster Shafer Zonotope Structures (zonotopic focal elements)   
 
 mutable struct DSZ
-    flow :: Vector{Zonotope}           # vector of length nb_steps
+    flow :: Vector{Zonotope}            # focal elements (length nb_steps)
     n :: Int64                          # input dimension (number of noise symbols)
     p :: Int64                          # output dim (nb of neurons)
-    nb_steps :: Int64                   # discretization size
+    nb_steps :: Int64                   # nb of focal elements
 end 
 
 # vp: input pbox
@@ -38,28 +38,17 @@ function assign_inputs!(vp :: Vector{pbox}, x :: Array{Interval}, n::Int64 , lev
 end
 
 
-# for independent inputs - building the DSZ from the vector of pbox/DSI
+# building a DSZ from the vector of pbox/DSI for an input vector with independent components 
 function generate_DSZ(vp :: Vector{pbox})
     n = length(vp) # input dimension (number of noise symbols)
-    p = n  # we build the PAF for (x_1, ... x_n)
+    p = n  # we build the DSZ for (x_1, ... x_n)
 
-    # # pboxes in Julia all have the same number of elements - modifying this (setting this number to 1) in case we have a constant input 
-    # if (vp[1].u[1] == vp[1].u[length(vp[1].u)])  
-    #     nb_steps = 1
-    #     vp[1].u = Vector{Float64}([vp[1].u[1]])
-    # else
+    # number of zonotopic focal elements (assuming the input components may not have the same nb of focal elements)
     nb_steps = length(vp[1].u)
-    #end
     for i in 2:n
-        #if (vp[i].u[1] != vp[i].u[length(vp[i].u)])
         nb_steps = nb_steps * length(vp[i].u)
-        #else
-        #    vp[i].u = Vector{Float64}([vp[i].u[1]])
-        #end
     end
-
-    
-    print("Number of zonotopic focal elements=",nb_steps,"\n")
+    # print("Number of zonotopic focal elements=",nb_steps,"\n")
 
     
     temp =  collect(Base.product(interval.(vp[1].u,vp[1].d),interval.(vp[2].u,vp[2].d)))
@@ -81,14 +70,13 @@ function generate_DSZ(vp :: Vector{pbox})
         i = i+1
     end
 
-    #print("flow2=",flow2,"\n\n")
     return DSZ(flow2, n, p, nb_steps)
 end
 
 
 
 
-# the function below is taken from the documentation about ProbabilityBoudsAnaysis and does somethink that looks wierd to me (?) 
+# the function below is taken from the documentation about ProbabilityBoudsAnaysis
 function makepbox2(focal_el)
      x_lo = getfield.(focal_el, :lo);
      x_hi = getfield.(focal_el, :hi);
@@ -129,7 +117,6 @@ function DSZ_to_pbox(dsz :: DSZ, is_bounded::Bool)
         end
     end
     
-    #ProbabilityBoundsAnalysis.setSteps(save_steps)
     return vp
 end
 
@@ -137,76 +124,13 @@ end
 
 
 
-
-
-# classical zonotopic propagation on each elementary zonotope
-function dsz(act::ActivationFunction, input::DSZ)
-    #Input: activation function and a DSZ
-    # Output : a DSZ after applying the activation function on it
-    
-    if (act == Id())
-        return input
-    elseif (act == ReLU())
-        outputs = Vector{Zonotope}(undef,input.nb_steps)
-        for i in 1: input.nb_steps
-
-            ux = LazySets.high(input.flow[i])
-            lx = LazySets.low(input.flow[i])
-
-            if (all(x -> x >= 0, lx))
-                outputs[i]= input.flow[i]
-            elseif (all(x -> x <= 0, ux))
-                c = LazySets.center(input.flow[i])
-                fill!(c, 0.0)
-                g = zeros(size(genmat(input.flow[i]),1),1)
-                outputs[i]=Zonotope(c, g)
-            else
-                outputs[i] = overapproximate(Rectification(input.flow[i]), Zonotope)
-            end
-
-        end
-        # TODO. Mean and variance yet to be modified
-        return DSZ(outputs, input.n, input.p, input.nb_steps) 
-
-    else 
-        print("warning, ",act," not yet implemented")
-        return input
-    end
-end
-
-
-function dsz(layer::Layer, input::DSZ)
-    p = length(layer.bias)  # output layer dimension
-    outputs = Vector{Zonotope}(undef,input.nb_steps)
-    for i in 1 : input.nb_steps
-       # apply affline transform on zonotope
-       outputs[i]= concretize(layer.weights*input.flow[i]+layer.bias)        
-    end
-    # TODO. Need to update Mean and variance (and should be of dimension p)
-    return DSZ(outputs, input.n, p, input.nb_steps)
-end
-
-
-function dsz(nnet::Network, input::DSZ)
-    bounds = Vector{DSZ}(undef, length(nnet.layers) + 1)
-    bounds[1] = input
-    
-    for i in 1:length(nnet.layers)
-        #Using my own implementation of activation function
-        #print(paf_approximate_affine_map(nnet.layers[i],bounds[i]))
-        bounds[i+1]=dsz_approximate_act_map(nnet.layers[i].activation,dsz_approximate_affine_map(nnet.layers[i],bounds[i]))
-    end
-
-    return bounds[length(nnet.layers)+1]   
-end
-
 # putting everything together
 function dsz_approximate_nnet(nnet::Network, input::Vector{pbox})
     dsz_in = generate_DSZ(input)
     #print("after generate_PAF\n")
     #print("paf_in length =",length(paf_in.flow), " contents = ", paf_in,"\n")
     dsz_out = dsz_approximate_nnet(nnet, dsz_in)
-    if (input[1].bounded[1])
+    if (input[1].bounded[1]) # to be interpreted later
         is_bounded = true
     else
         is_bounded = false
@@ -221,11 +145,10 @@ function dsz_approximate_condition(input::DSZ, mat_spec::Matrix{Float64})
        # apply affline transform on zonotope
        outputs[i]= concretize(mat_spec*input.flow[i])
     end
-    # TODO. Need to update Mean and variance (and should be of dimension p)
     return DSZ(outputs, input.n, size(mat_spec,1), input.nb_steps)
 end
 
-# Redefining cdf from the library because there are a few details in the implem which I find "debatable"...
+# Redefining cdf from the library because I want to modify  a few details ...
 # returns the interval probability that s \leq x
 function my_cdf(s :: pbox, x::Real)
     # [u,d] are the focal elements
@@ -242,9 +165,6 @@ function my_cdf(s :: pbox, x::Real)
 
     indUb = sum(u .<= x)/n;
     indLb = sum(d .<= x)/n;
-    #indUb = 1 - sum(x .< u)/n;
-    #indLb = 1 - sum(x .<= d)/n;
-
 
     return interval(indLb, indUb)
 end
@@ -269,8 +189,6 @@ function vect_cdf(s :: Vector{pbox}, vx::Vector{Float64})
             else
                 indUb = sum(u .<= x)/n;
                 indLb = sum(d .<= x)/n;
-                #indUb = 1 - sum(x .< u)/n;
-                #indLb = 1 - sum(x .<= d)/n;
     
                 res[i] = interval(indLb, indUb)
             end
@@ -368,7 +286,7 @@ function dsz_approximate_nnet_and_condition_nostorage(nnet::Network, input::Vect
         nb_steps = nb_steps * length(vp[i].u)
     end
     
-    print("Number of zonotopic focal elements=",nb_steps,"\n")    
+    # print("Number of zonotopic focal elements=",nb_steps,"\n")    
     
     iter = Vector{UnitRange{Int64}}(undef,n)
     for i in 1:n
@@ -386,7 +304,7 @@ function dsz_approximate_nnet_and_condition_nostorage(nnet::Network, input::Vect
             tab_high[i] = vp[i].d[index[i]]
         end
         input_zono = Hyperrectangle(low=tab_low,high=tab_high)
-        res_zono = zono_approximate_nnet_light(nnet, input_zono)
+        res_zono = zono_approximate_nnet(nnet, input_zono)
         proba = proba + dsz_focal_cdf(concretize(mat_spec*res_zono),rhs_spec)  # remplacer par linear_map
     end
 
@@ -406,28 +324,6 @@ function dsz_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, 
     dsz_condition = dsz_approximate_condition(dsz_out,mat_spec)
     proba = dsz_cdf(dsz_condition,rhs_spec)
     println("Probability : ",proba)
-    
-    
-    # res = DSZ_to_pbox(dsz_condition,is_bounded)
-    # println("probability of unsafety : ",mat_spec," . y < ",rhs_spec," is:")
-    # print("res[1] <= 0: ", res[1] <= rhs_spec[1], "\n")
-    # print("res[2] <= 0: ", res[2] <= rhs_spec[2], "\n")
-    # print("res[3] <= 0: ", res[3] <= rhs_spec[3], "\n")
-    # print("res[4] <= 0: ", res[4] <= rhs_spec[4], "\n")
-    # # The below should correspond to res[i] < rhs_spec[i] but seems slightly incorrect with respect to an inequality, will reimplement mine (!?)
-    # print("cdf(res[1],0): ", cdf(res[1],rhs_spec[1]), "\n")
-    # print("cdf(res[2],0): ", cdf(res[2],rhs_spec[2]), "\n")
-    # print("cdf(res[3],0): ", cdf(res[3],rhs_spec[3]), "\n")
-    # print("cdf(res[4],0): ", cdf(res[4],rhs_spec[4]), "\n")
-    # print("my_cdf(res[1],0): ", my_cdf(res[1],rhs_spec[1]), "\n")
-    # print("my_cdf(res[2],0): ", my_cdf(res[2],rhs_spec[2]), "\n")
-    # print("my_cdf(res[3],0): ", my_cdf(res[3],rhs_spec[3]), "\n")
-    # print("my_cdf(res[4],0): ", my_cdf(res[4],rhs_spec[4]), "\n")
-   
-    # vec = vect_cdf(res,rhs_spec)
-    # for i in 1:length(vec)
-    #     println("vect_cdf: ", vec[i])
-    # end
    
     if (print_pbox)
         if (input[1].bounded[1])
@@ -441,6 +337,11 @@ function dsz_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, 
 
     return proba;
 end
+
+
+
+
+###### Heuristics to define automatically the number of focal elements for input approximation
 
 function dsz_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool)
     vect_nb_focal_elem = Vector{Int64}(undef, length(init_lb)) 
