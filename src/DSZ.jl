@@ -341,9 +341,9 @@ end
 
 
 
-###### Heuristics to define automatically the number of focal elements for input approximation
+###### Heuristic to define automatically the number of focal elements for input approximation
 
-function dsz_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool)
+function dsz_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool, eps::Float64)
     vect_nb_focal_elem = Vector{Int64}(undef, length(init_lb)) 
     nb_elem = 1
     for i in 1:length(init_lb)
@@ -359,18 +359,23 @@ function dsz_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::V
     increment = 1
     while (! is_improved)
     	for i in 1:length(init_lb)
-	    temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
-	    vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
+	        temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
+	        vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
             acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-	    @time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
-	    w_test[i] = sup(proba)-inf(proba)
-	    if (w > w_test[i])
-		    is_improved = true
-	    end
-	    println("vect_nb_focal_elem=",vect_nb_focal_elem,":"," prob width=",w_test[i])
+	        @time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
+	        w_test[i] = sup(proba)-inf(proba)
+	        if (w > w_test[i])
+		        is_improved = true
+	        end
+            if (w_test[i] < eps)
+                println("Final vect_nb_focal_elem=",vect_nb_focal_elem,":")
+                println("Final Proba = ",proba)
+                return proba
+            end
+	        println("vect_nb_focal_elem=",vect_nb_focal_elem,":"," prob width=",w_test[i])
             vect_nb_focal_elem[i] = vect_nb_focal_elem[i] - temp
     	end
-	increment = increment * 2
+	    increment = increment * 2
     end
 
     incr_coeff = 50.0; # this increasing rate will be reduced with iterations
@@ -387,138 +392,55 @@ function dsz_focal_refinement(nnet::Network, init_lb::Vector{Float64},init_ub::V
     end
     while (maximum(w./w_test.-1) >= 0.01 && nb_elem < 1000000)
     	vect_nb_focal_elem = vect_nb_focal_elem + improvement_vector
-	if (incr_coeff > 5.)
-		incr_coeff = incr_coeff/2
-	end
-	nb_elem = 1
+	    if (incr_coeff > 5.)
+		    incr_coeff = incr_coeff/2
+	    end
+	    nb_elem = 1
     	for i in 1:length(init_lb)
             nb_elem = nb_elem * vect_nb_focal_elem[i]
     	end
         #vect_nb_focal_elem[argmin(w_test)] = vect_nb_focal_elem[argmin(w_test)] + 10 # seems better to augment only one compoennt
-	acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
+	    acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
     	println("vect_nb_focal_elem=",vect_nb_focal_elem,":")
     	@time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
     	w = sup(proba)-inf(proba)  
-	if (nb_elem > 1000000)
-	   break
-	end
-	w_test = Vector{Float64}(undef, length(init_lb))
+        if (w < eps)
+            println("Final vect_nb_focal_elem=",vect_nb_focal_elem,":")
+            println("Final Proba = ",proba)
+            return proba
+        end
+	    if (nb_elem > 1000000)
+	        break
+	    end
+	    w_test = Vector{Float64}(undef, length(init_lb))
     	for i in 1:length(init_lb)
-	    temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
+	        temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
             vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
             acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
             @time proba = dsz_approximate_nnet_and_condition_nostorage(nnet, acas_inputpbox, mat_spec,rhs_spec)
             w_test[i] = sup(proba)-inf(proba)
-	    println("vect_nb_focal_elem=",vect_nb_focal_elem,":"," prob width=",w_test[i])
+	        println("vect_nb_focal_elem=",vect_nb_focal_elem,":"," prob width=",w_test[i])
+            if (w_test[i] < eps)
+                println("Final vect_nb_focal_elem=",vect_nb_focal_elem,":")
+                println("Final Proba = ",proba)
+                return proba
+            end
             vect_nb_focal_elem[i] = vect_nb_focal_elem[i] - temp
     	end
-	improvement_vector = round.(Int32, (w./w_test.-1).*vect_nb_focal_elem.*incr_coeff)
-	# putting to 0 all but the greatest 2 components
+	    improvement_vector = round.(Int32, (w./w_test.-1).*vect_nb_focal_elem.*incr_coeff)
+	    # putting to 0 all but the greatest 2 components
     	#sort = sortperm(improvement_vector)
     	sort = sortperm(w./w_test)
     	for i in 1:length(sort)-2
             improvement_vector[sort[i]] = 0
     	end
-	println("w_test=",w_test)
+	    println("w_test=",w_test)
     	println("w/w_test.-1", w./w_test.-1)
     	println("improvement_vector", improvement_vector)
     end
 
     println("Final vect_nb_focal_elem=",vect_nb_focal_elem,":")
-    println("Final Proba width=",sup(proba)-inf(proba))
-    return proba
-
-end
-
-function dsz_focal_refinement_sauv(nnet::Network, init_lb::Vector{Float64},init_ub::Vector{Float64}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64},is_bounded::Bool)
-    vect_nb_focal_elem = Vector{Int64}(undef, length(init_lb))
-    nb_elem = 1
-    for i in 1:length(init_lb)
-            vect_nb_focal_elem[i] = 5
-            nb_elem = nb_elem * vect_nb_focal_elem[i]
-    end
-    acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-    println("vect_nb_focal_elem=",vect_nb_focal_elem,":")
-    @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
-    w = sup(proba)-inf(proba)
-    w_test = Vector{Float64}(undef, length(init_lb))
-    is_improved = false
-    increment = 1
-    incr_coeff = 30.0; # reduce the increasing rate with iterations
-    for i in 1:length(init_lb)
-            temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
-            vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
-            acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-            @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
-            w_test[i] = sup(proba)-inf(proba)
-            if (w > w_test[i])
-                    is_improved = true
-            end
-            println("vect_nb_focal_elem=",vect_nb_focal_elem,":"," prob width=",w_test[i])
-            vect_nb_focal_elem[i] = vect_nb_focal_elem[i] - temp
-    end
-    if (! is_improved)
-            increment = increment + 1
-    end
-
-    improvement_vector = round.(Int32, (w./w_test.-1).*vect_nb_focal_elem.*incr_coeff)
-    println("w_test=",w_test)
-    println("w/w_test.-1", w./w_test.-1)
-    println("improvement_vector", improvement_vector)
-    # putting to 0 all but the greatest 2 components
-    #sort = sortperm(improvement_vector)
-    sort = sortperm(w./w_test)
-    for i in 1:length(sort)-2
-            improvement_vector[sort[i]] = 0
-    end
-    while (w >= 1 || nb_elem < 1000000)
-        vect_nb_focal_elem = vect_nb_focal_elem + improvement_vector
-        if (incr_coeff > 5.)
-                incr_coeff = incr_coeff/1.2
-        end
-        nb_elem = 1
-        for i in 1:length(init_lb)
-            nb_elem = nb_elem * vect_nb_focal_elem[i]
-        end
-        #vect_nb_focal_elem[argmin(w_test)] = vect_nb_focal_elem[argmin(w_test)] + 10 # seems better to augment only one compoennt
-        acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-        println("vect_nb_focal_elem=",vect_nb_focal_elem,":")
-        @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
-        w = sup(proba)-inf(proba)
-        if (nb_elem > 1000000)
-           break
-        end
-        w_test = Vector{Float64}(undef, length(init_lb))
-        is_improved = false
-        for i in 1:length(init_lb)
-            temp = max(increment,round.(Int32,0.1*vect_nb_focal_elem[i]))
-            vect_nb_focal_elem[i] = vect_nb_focal_elem[i] + temp
-            acas_inputpbox = init_pbox_Normal(init_lb,init_ub,vect_nb_focal_elem,is_bounded)
-            @time proba = dsz_approximate_nnet_and_condition(nnet, acas_inputpbox, mat_spec,rhs_spec)
-            w_test[i] = sup(proba)-inf(proba)
-            if (w > w_test[i])
-                    is_improved = true
-            end
-            println("vect_nb_focal_elem=",vect_nb_focal_elem,":"," prob width=",w_test[i])
-            vect_nb_focal_elem[i] = vect_nb_focal_elem[i] - temp
-        end
-        improvement_vector = round.(Int32, (w./w_test.-1).*vect_nb_focal_elem.*incr_coeff)
-        # putting to 0 all but the greatest 2 components
-        #sort = sortperm(improvement_vector)
-        sort = sortperm(w./w_test)
-        for i in 1:length(sort)-2
-            improvement_vector[sort[i]] = 0
-        end
-        println("w_test=",w_test)
-        println("w/w_test.-1", w./w_test.-1)
-        println("improvement_vector", improvement_vector)
-        if (! is_improved)
-            increment = increment + 1
-        end
-    end
-
-    println("Final vect_nb_focal_elem=",vect_nb_focal_elem,":")
-    println("Final Proba width=",sup(proba)-inf(proba))
+    println("Final Proba = ",proba)
     return proba
 
 end
