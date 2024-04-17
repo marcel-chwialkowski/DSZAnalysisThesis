@@ -2,7 +2,7 @@
 Probability Bounds Analysis of Neural Networks in Julia.
 
 Code (see notebooks in the examples directory) to reproduce the examples of:
-A Zonotopic Dempster-Shafer Approach to the Quantitative Verification of Neural Networks, Eric Goubault, Sylvie Putot, 2024.
+[A Zonotopic Dempster-Shafer Approach to the Quantitative Verification of Neural Networks, Eric Goubault, Sylvie Putot, 2024](https://hal.science/hal-04546350).
 
 
 ## Dependencies
