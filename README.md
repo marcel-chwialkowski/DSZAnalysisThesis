@@ -17,11 +17,27 @@ Retrieve the DSZAnalysis directory and run in this directory the command:
 
 ```docker build . -f Dockerfile```
 
-An image ```sha...``` is built, which you can execute by:
+An image ```sha256:...``` is built, which you can execute by:
 
-```docker run -it --name FM sha...```
+```docker run -it --name FM sha256:...```
 
-This should open Julia in which you can run the examples by:
+This should open Julia through docker, in which you can run the examples by:
 - ```include("ToyExample.jl")```
 - ```include("ACASXu.jl")```
 - ```include("RocketLander.jl")```
+
+### Using your own Julia installation
+
+These files been executed with Julia 1.8.1 and the following Julia packages and versions:
+
+```Using Pkg
+Pkg.add(name="ProbabilityBoundsAnalysis", version="0.2.11"); 
+Pkg.add(url="https://github.com/sisl/NeuralVerification.jl"); 
+Pkg.add(name="LazySets", version="2.11.3"); 
+Pkg.add(name="IntervalArithmetic",version="0.20.9"); 
+Pkg.add(name="Distributions", version = "0.25.107"); 
+Pkg.add(name="DataFrames", version="1.6.1"); 
+Pkg.add(name="SplitApplyCombine",version="1.2.3"); 
+Pkg.add(name="PyPlot", version = "2.11.2"); 
+Pkg.add(name="Plots", version="1.39.0 »)
+```
