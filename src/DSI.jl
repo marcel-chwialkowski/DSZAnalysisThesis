@@ -1,18 +1,18 @@
 using NeuralVerification, LazySets, LazySets.Approximations
 import NeuralVerification: Network, Layer, ReLU, Id, compute_output, ActivationFunction, get_bounds, forward_act
-using Plots
+# using Plots
 using LinearAlgebra
 import LazySets.Approximations.interval_hull
 
-import Pkg; Pkg.add("ProbabilityBoundsAnalysis")
-Pkg.add("PyPlot")
-using ProbabilityBoundsAnalysis, PyPlot, IntervalArithmetic
+# import Pkg; Pkg.add("ProbabilityBoundsAnalysis")
+# Pkg.add("PyPlot")
+using ProbabilityBoundsAnalysis, IntervalArithmetic # PyPlot
 import IntervalArithmetic: Interval
-Pkg.add("Distributions")
+# Pkg.add("Distributions")
 using Distributions, Random
-Pkg.add("DataFrames")
+# Pkg.add("DataFrames")
 using DataFrames
-Pkg.add("SplitApplyCombine")
+# Pkg.add("SplitApplyCombine")
 using SplitApplyCombine
 
 
