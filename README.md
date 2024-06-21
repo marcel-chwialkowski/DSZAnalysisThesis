@@ -14,10 +14,14 @@ Builds on:
 ### Using docker
 
 Retrieve the DSZAnalysis directory and run in this directory the command:
+
 ```docker build . -f Dockerfile```
+
 An image ```sha...``` is built, which you can execute by:
+
 ```docker run -it --name FM sha...```
+
 This should open Julia in which you can run the examples by:
-```include("ToyExample.jl")```
-```include("ACASXu.jl")```
-```include("RocketLander.jl")```
+- ```include("ToyExample.jl")```
+- ```include("ACASXu.jl")```
+- ```include("RocketLander.jl")```
