@@ -1,8 +1,9 @@
+# This file implements the neural network analysis with Probabilistic Zonotopes, as described in Section 4 of 
+# the FM 2024 paper "A Zonotopic Dempster-Shafer Approach to the Quantitative Verification of Neural Networks"
 
 
-#########################################################  Probabilistic zonotopes: use zonotopic analysis and intrepret at the end as a probabilistic zonotopes where we assign to new symbols any cdf defined on [-1,1]
 
-# rescale between [-1,1] to build affine forms / zonotopes 
+# rescale pbox elements between [-1,1] to build affine forms / zonotopes
 function rescale(input::pbox)
     input_bounds = range(input)
     if (diam(input_bounds) > 0)
@@ -12,8 +13,10 @@ function rescale(input::pbox)
     end
  end
  
-
- function affpbox_approximate_nnet(nnet::Network, input::Vector{pbox}, input_is_indep::Bool)
+ 
+# Probabilistic zonotope analysis: use zonotopic analysis and interpret at the end as a probabilistic zonotopes 
+#   where new symbols can take any cdf defined on [-1,1]
+ function PZono_approximate_nnet(nnet::Network, input::Vector{pbox}, input_is_indep::Bool)
  
     # classical zonotopic analysis from the range of the support of input distributions
     input_bounds = range.(input)
@@ -42,8 +45,9 @@ function rescale(input::pbox)
  end
 
 
-# instead of just producing the resulting pbox, evaluates the condition on the zonotopic form before evaluating it in pbox
- function affpbox_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, input_is_indep::Bool, mat_spec::Matrix{Float64})
+# Additionnally to producing the vector of pbox resulting from the neural network reachability analysis, 
+#  evaluates the safety condition on the zonotopic form 
+ function PZono_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, input_is_indep::Bool, mat_spec::Matrix{Float64})
 
     # classical zonotopic analysis from the range of the support of input distributions
     input_bounds = range.(input)

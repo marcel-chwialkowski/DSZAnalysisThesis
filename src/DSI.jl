@@ -15,7 +15,8 @@ using SplitApplyCombine
 
 
 
-# initialize a vector of pboxes with same number of focal elements for each component and Normal law, possibly truncated
+# initialize a vector of pboxes from Normal distribution, possibly truncated
+# each component is discretized with the same number of focal elements 
 # (used as input of the neural network analysis) 
 function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_focal_elem::Int64,truncate_focals::Bool)
     steps = parametersPBA.steps # saving the number of focal elements
@@ -39,7 +40,7 @@ function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_f
 end
 
 
-# initialize a vector of pboxes with different number of focal elements for each input component
+# initialize a vector of pboxes from Normal distribution with different number of focal elements for each input component
 # (used as input of the neural network analysis) 
 function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_focal_elem::Vector{Int64},truncate_focals::Bool)
     steps = parametersPBA.steps # saving the number of focal elements

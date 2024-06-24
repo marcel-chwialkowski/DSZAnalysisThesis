@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
-# # Dempster Shafer Zonotope Structures (zonotopic focal elements)   
+# This file implements the neural network analysis with Dempster Shafer Zonotope Structures (DSZ), as described in Section 5 of 
+# the FM 2024 paper "A Zonotopic Dempster-Shafer Approach to the Quantitative Verification of Neural Networks"
+ 
 
 mutable struct DSZ
     flow :: Vector{Zonotope}            # focal elements (length nb_steps)
@@ -75,8 +76,7 @@ end
 
 
 
-
-# the function below is taken from the documentation about ProbabilityBoudsAnaysis
+# Building pbox from vector of focal elements
 function makepbox2(focal_el)
      x_lo = getfield.(focal_el, :lo);
      x_hi = getfield.(focal_el, :hi);
@@ -86,7 +86,7 @@ function makepbox2(focal_el)
  end
 
 
-
+# converting DSZ to vector of pbox
 function DSZ_to_pbox(dsz :: DSZ, is_bounded::Bool)
     vp = Vector{pbox}(undef,dsz.p)
 
@@ -123,51 +123,6 @@ end
 
 
 
-
-# putting everything together
-function dsz_approximate_nnet(nnet::Network, input::Vector{pbox})
-    dsz_in = generate_DSZ(input)
-    #print("after generate_PAF\n")
-    #print("paf_in length =",length(paf_in.flow), " contents = ", paf_in,"\n")
-    dsz_out = dsz_approximate_nnet(nnet, dsz_in)
-    if (input[1].bounded[1]) # to be interpreted later
-        is_bounded = true
-    else
-        is_bounded = false
-    end
-    return DSZ_to_pbox(dsz_out,is_bounded)
-end
-
-# Adding linear transform for interpretation of the condition
-function dsz_approximate_condition(input::DSZ, mat_spec::Matrix{Float64})
-    outputs = Vector{Zonotope}(undef,input.nb_steps)
-    for i in 1 : input.nb_steps
-       # apply affline transform on zonotope
-       outputs[i]= concretize(mat_spec*input.flow[i])
-    end
-    return DSZ(outputs, input.n, size(mat_spec,1), input.nb_steps)
-end
-
-# Redefining cdf from the library because I want to modify  a few details ...
-# returns the interval probability that s \leq x
-function my_cdf(s :: pbox, x::Real)
-    # [u,d] are the focal elements
-    d = s.d; u = s.u; n = s.n;
-    bounded = s.bounded;
-
-    if x < u[1];
-        return interval(0,1/n) * (1-bounded[1]);
-    end;
-    if x >= d[end];
-        if bounded[2]; return 1; end
-        return interval((n-1)/n, 1);
-    end;
-
-    indUb = sum(u .<= x)/n;
-    indLb = sum(d .<= x)/n;
-
-    return interval(indLb, indUb)
-end
 
 
 #Define the cdf function on a vector of Pboxes (and interpret element-wise)
@@ -272,8 +227,7 @@ end
 
 
 
-
-# instead of just producing the resulting pbox, evaluates the condition on the zonotopic form before evaluating it in pbox
+# From an input vector of pbox, builds the DSZ and propagates it through the neural network; finally, evaluate safety condition on the result
 function dsz_approximate_nnet_and_condition_nostorage(nnet::Network, input::Vector{pbox}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64}, print_pbox=false)
     # dsz_in = generate_DSZ(input)
     vp = input
@@ -298,6 +252,10 @@ function dsz_approximate_nnet_and_condition_nostorage(nnet::Network, input::Vect
     tab_high = Vector{Float64}(undef,n)
 
     proba = interval(0.0, 0.0)
+    vec_proba = Vector{Interval}(undef,length(rhs_spec)+1)
+    for i in 1:length(rhs_spec)+1
+        vec_proba[i] = interval(0.0, 0.0)
+    end
     for index in c1
         for i in 1:n
             tab_low[i] = vp[i].u[index[i]]
@@ -305,38 +263,24 @@ function dsz_approximate_nnet_and_condition_nostorage(nnet::Network, input::Vect
         end
         input_zono = Hyperrectangle(low=tab_low,high=tab_high)
         res_zono = zono_approximate_nnet(nnet, input_zono)
-        proba = proba + dsz_focal_cdf(concretize(mat_spec*res_zono),rhs_spec)  # remplacer par linear_map
+        spec_zono = concretize(mat_spec*res_zono)  # remplacer par linear_map
+        # proba of the conjunction
+        proba = proba + dsz_focal_cdf(spec_zono,rhs_spec) 
+        # proba of each condition of the conjunction separately
+        for i in 1:length(rhs_spec)
+            spec_zono = concretize(mat_spec[i,:]*res_zono)
+            vec_proba[i] = vec_proba[i] + dsz_focal_cdf(spec_zono,Vector{Float64}([rhs_spec[i]]))
+        end
     end
 
     proba = proba / nb_steps;
+    vec_proba = vec_proba / nb_steps;
+    vec_proba[length(rhs_spec)+1] = proba
 
-    println("Probability : ",proba)
-    return proba;
+    #println("Probability : ",proba)
+    return vec_proba;
 end
 
-
-    
-
-# instead of just producing the resulting pbox, evaluates the condition on the zonotopic form before evaluating it in pbox
-function dsz_approximate_nnet_and_condition(nnet::Network, input::Vector{pbox}, mat_spec::Matrix{Float64},rhs_spec::Vector{Float64}, print_pbox=false)
-    dsz_in = generate_DSZ(input)
-    dsz_out = dsz_approximate_nnet(nnet, dsz_in)
-    dsz_condition = dsz_approximate_condition(dsz_out,mat_spec)
-    proba = dsz_cdf(dsz_condition,rhs_spec)
-    println("Probability : ",proba)
-   
-    if (print_pbox)
-        if (input[1].bounded[1])
-            is_bounded = true
-        else
-            is_bounded = false
-        end
-        res =  DSZ_to_pbox(dsz_out, is_bounded)
-        println("resulting pbox:",res)
-    end
-
-    return proba;
-end
 
 
 
