@@ -6,7 +6,7 @@ Code (see notebooks in the examples directory) to reproduce the examples of:
 
 
 ## Dependencies and installation
-Builds on:
+Builds in particular on:
 - the [LazySets](https://juliareach.github.io/LazySets.jl/) package for calculus with convex sets 
 - the [ProbabilityBoundsAnalysis](https://github.com/AnderGray/ProbabilityBoundsAnalysis.jl) package for p-boxes analysis relying on Dempster-Shafer interval structures  
 - the [NeuralVerification](https://sisl.github.io/NeuralVerification.jl/latest/functions/) package
