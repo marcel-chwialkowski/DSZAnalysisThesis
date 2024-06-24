@@ -1,6 +1,6 @@
-# Utilities for set-based (zonotopic) analysis
+# This file contains utilities for set-based (zonotopic) analysis, relying on functions from the LaySets and NeuralVerification packages
 
-#  activation layer on zonotopes
+#  applying the activation layer on zonotopes
 function zono_act_map(act::ActivationFunction, input::Zonotope)
     
     if (act == Id())
@@ -16,7 +16,7 @@ end
 
 
 
-# zonotope interpretation of network
+# propagating zonotope through network (starting from a hypperrectangle)
 function zono_approximate_nnet(nnet::Network, input::Hyperrectangle)
     #bounds = Vector{PAF}(undef, length(nnet.layers) + 1)
     res_zono = input
@@ -30,6 +30,7 @@ function zono_approximate_nnet(nnet::Network, input::Hyperrectangle)
 end
 
 
+# set-based (non probabilistic) reachability analysis of a neural network (for comparisons - not actually used in the DSZ Analysis)
 function Classical_Analysis(nnet::Network, input::Vector{Interval{Float64}}, plot::Bool, exact::Bool)
     X = Hyperrectangle(low=inf.(input),high=sup.(input))
 
@@ -37,24 +38,21 @@ function Classical_Analysis(nnet::Network, input::Vector{Interval{Float64}}, plo
     result_bounds = get_bounds(nnet,X)
     int_hull = result_bounds[length(result_bounds)]
     print("Interval result =",low(int_hull),high(int_hull),"\n")
-    
-    # Result with zonotopes
-    #zono_result = zono_approximate_nnet(nnet, X) 
-    #int_hull = box_approximation(zono_result)
-    #print("Zonotopic result =",low(int_hull),high(int_hull),"\n")
 
-    # result with AI2
+    # result with zonotopes (AI2 analysis)
     problem = Problem(nnet, X, X)
     result_zono = NeuralVerification.solve(Ai2z(),problem)
     #print(result_zono.reachable)
     int_hull = box_approximation.(result_zono.reachable)
     print("AI2z result =",low.(int_hull),high.(int_hull),"\n")
 
+    # exact reachability
     if (exact)
         result_exact = NeuralVerification.solve(ExactReach(),problem)
         exact_int_hull = box_approximation.(result_exact.reachable)
         #print(exact_int_hull)
     end
+
     if (plot)
         Plots.plot(result_bounds[length(result_bounds)], label = "Box result")
         #plot!(zono_result[length(result_bounds)], label = "Zono result")
