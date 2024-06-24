@@ -1,23 +1,22 @@
+# This file implements the neural network analysis with Interval Dempster-Shafer structures (DSI), as described in Section 3 of 
+# the FM 2024 paper "A Zonotopic Dempster-Shafer Approach to the Quantitative Verification of Neural Networks"
+# pbox here means DSI
+
 using NeuralVerification, LazySets, LazySets.Approximations
 import NeuralVerification: Network, Layer, ReLU, Id, compute_output, ActivationFunction, get_bounds, forward_act
-# using Plots
 using LinearAlgebra
 import LazySets.Approximations.interval_hull
 
-# import Pkg; Pkg.add("ProbabilityBoundsAnalysis")
-# Pkg.add("PyPlot")
 using ProbabilityBoundsAnalysis, IntervalArithmetic # PyPlot
 import IntervalArithmetic: Interval
-# Pkg.add("Distributions")
 using Distributions, Random
-# Pkg.add("DataFrames")
 using DataFrames
-# Pkg.add("SplitApplyCombine")
 using SplitApplyCombine
 
 
 
-# initialize a vector of pboxes with same number of focal elements for each component and Normal law, possibly truncated 
+# initialize a vector of pboxes with same number of focal elements for each component and Normal law, possibly truncated
+# (used as input of the neural network analysis) 
 function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_focal_elem::Int64,truncate_focals::Bool)
     steps = parametersPBA.steps # saving the number of focal elements
     mean = (init_lb + init_ub) / 2.0
@@ -41,6 +40,7 @@ end
 
 
 # initialize a vector of pboxes with different number of focal elements for each input component
+# (used as input of the neural network analysis) 
 function init_pbox_Normal(init_lb::Vector{Float64},init_ub::Vector{Float64},nb_focal_elem::Vector{Int64},truncate_focals::Bool)
     steps = parametersPBA.steps # saving the number of focal elements
     mean = (init_lb + init_ub) / 2.0
@@ -67,7 +67,7 @@ end
 
 
 
-# Utilities to interpret a neural network in Pbox / DSI
+# Utilities to interpret a neural network in  DSI
 
 function Relu(x::pbox)
     #print(x.u,"\n")
@@ -79,6 +79,7 @@ function Relu(x::pbox)
 end
 
 
+# Transform of a vector of pbox by affine map defined by matrix M and vector b, assuming independence between vector components
 function pbox_affine_map_Invdep(M::Matrix{Float64},input::Vector{pbox},b::Vector{Float64})
     output = Vector{pbox}(undef, length(b))
         for i in 1:length(b)
@@ -91,6 +92,7 @@ function pbox_affine_map_Invdep(M::Matrix{Float64},input::Vector{pbox},b::Vector
     return output
 end
 
+# Transform of a vector of pbox by an affine layer, with different interpretation if the input components are independent or not 
 function pbox_affine_map(no_layer::Int64, layer::Layer, input::Vector{pbox}, input_is_indep::Bool)
     # after the 1st layer we always assume unknown correlation between variables and adapt affine transform accordingly
     if (no_layer > 1 || !input_is_indep) 
@@ -101,6 +103,7 @@ function pbox_affine_map(no_layer::Int64, layer::Layer, input::Vector{pbox}, inp
     return output
 end
 
+# Applying the activation function on each neuron of the vector
 function pbox_act_map(act::ActivationFunction, input::Vector{pbox})
     if (act == Id())
         return input
@@ -112,6 +115,7 @@ function pbox_act_map(act::ActivationFunction, input::Vector{pbox})
     end
 end
 
+# The main DSI analysis function 
 function pbox_approximate_nnet(nnet::Network, input::Vector{pbox}, input_is_indep::Bool)
     bounds = input
     for i in 1:length(nnet.layers)
