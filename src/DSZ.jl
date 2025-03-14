@@ -122,9 +122,6 @@ end
 
 
 
-
-
-
 #Define the cdf function on a vector of Pboxes (and interpret element-wise)
 function vect_cdf(s :: Vector{pbox}, vx::Vector{Float64})
         res = Vector{Interval}(undef,length(s))

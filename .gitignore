@@ -1,1 +1,4 @@
 *.png
+GMMoutput/
+pictures/
+examples/.ipynb_checkpoints/

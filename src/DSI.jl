@@ -161,3 +161,28 @@ function compute_samples(nnet::Network, input::Vector{pbox},nb_samples::Int)
 
     return sampled_outputs
 end
+
+function init_pbox_Normal_uncertainmean(init_lb::Vector{Float64},init_ub::Vector{Float64},mean_uncertainty::Interval,nb_focal_elem::Vector{Int64},truncate_focals::Bool)
+    steps = parametersPBA.steps # saving the number of focal elements
+    mean = (init_lb + init_ub) / 2.0
+    a = 3.0
+    dev = (init_ub - mean) / a
+    mean = mean .+ mean_uncertainty
+    pb = Vector{pbox}(undef, length(init_lb))
+    for i in 1:length(pb)
+        ProbabilityBoundsAnalysis.setSteps(nb_focal_elem[i])
+        pb[i] = normal(mean[i],dev[i])
+    end
+    ProbabilityBoundsAnalysis.setSteps(steps) # resetting the default number of focal elements
+    if (truncate_focals) # truncating to restrict the range to [init_lb_prop_1_2,init_ub_prop_1_2]
+        for i in 1:length(pb)
+            pb[i].u = max.(pb[i].u,init_lb[i]) # left cut of the focal elements
+            pb[i].d = max.(pb[i].d,init_lb[i]) # left cut of the focal elements
+            pb[i].d = min.(pb[i].d,init_ub[i]) # right cut of the focal elements
+            pb[i].u = min.(pb[i].u,init_ub[i]) # right cut of the focal elements
+            pb[i].bounded[1] = true # due to the cut, pbox is now bounded
+            pb[i].bounded[2] = true # due to the cut, pbox is now bounded
+        end
+    end
+    return pb
+end
