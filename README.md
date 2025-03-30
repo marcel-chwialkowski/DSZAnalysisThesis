@@ -4,17 +4,18 @@ This repository contains the code for experiments done for my Bachelor Thesis. T
 ## Organization of the modified repository
 The modified/new files are listed here:
 1. Examples folder:
-   a. ACASXu.ipynb - contains the experiments conducted on the ACASXu networks (both empirical propagation and DSZ).
-   b. ToyExample.ipynb - contains the experiments conducted on a Toy example (both empirical propagation and DSI).
-   c. Relic_MomentPropagation.ipynb - unused implementation of a moment propagation approach.
+   1. ACASXu.ipynb - contains the experiments conducted on the ACASXu networks (both empirical propagation and DSZ).
+   2. ToyExample.ipynb - contains the experiments conducted on a Toy example (both empirical propagation and DSI).
+   3. Relic_MomentPropagation.ipynb - unused implementation of a moment propagation approach.
 2. src folder:
-   a. covering_generation.jl - contains methods for generating coverings of non-parametric p-boxes.
-   b. propagation.jl - functions for empirical propagation experiments
-   c. sampling_functions.jl - unused functions for sampling values from p-boxes and enveloping CDFs into p-boxes.
+   1. covering_generation.jl - contains methods for generating coverings of non-parametric p-boxes.
+   2. propagation.jl - functions for empirical propagation experiments
+   3. sampling_functions.jl - unused functions for sampling values from p-boxes and enveloping CDFs into p-boxes.
    
 
+The original README file is pasted below:
 
-
+# DSZAnalysis
 Dempster-Shafer Zonotopic Probability Bounds Analysis of Neural Networks in Julia.
 
 Code (see notebooks in the examples directory) to reproduce the examples of:
