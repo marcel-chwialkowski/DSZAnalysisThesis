@@ -7,11 +7,15 @@ The modified/new files are listed here:
    1. ACASXu.ipynb - contains the experiments conducted on the ACASXu networks (both empirical propagation and DSZ).
    2. ToyExample.ipynb - contains the experiments conducted on a Toy example (both empirical propagation and DSI).
    3. Relic_MomentPropagation.ipynb - unused implementation of a moment propagation approach.
+   4. ACASXU_networks folder containing .nnet files describing the ACASXu networks.
+   5. RocketLander_networks - folder containing .nnet files describing the rocket lander networks (unused by us in the end).
 2. src folder:
    1. covering_generation.jl - contains methods for generating coverings of non-parametric p-boxes.
    2. propagation.jl - functions for empirical propagation experiments
    3. sampling_functions.jl - unused functions for sampling values from p-boxes and enveloping CDFs into p-boxes.
-   
+3. relics folder:
+   1. Relics_MomentPropagation.ipynb - similar to the Relic_MomentPropagation.ipynb in examples folder, however containing an additional sampling approach for comparison with the moment propagation approach.
+   2. Relic_NaiveSampling.ipynb - notebook containing naive attempts of sampling from p-boxes and propagating the samples through the network.
 
 The original README file is pasted below:
 
